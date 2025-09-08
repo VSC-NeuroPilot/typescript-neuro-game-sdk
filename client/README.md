@@ -4,17 +4,22 @@ A TypeScript and JavaScript SDK for integrating games with [Neuro-sama](https://
 
 This SDK is based on the original [Neuro Game SDK](https://github.com/VedalAI/neuro-game-sdk) and provides an implementation compatible with both Node.js and browser environments. It is designed to work seamlessly in both JavaScript and TypeScript projects.
 
-## Installation
-
-Install the SDK via npm:
-
-```bash
-npm install neuro-game-sdk
-```
-
-## Usage
+## Installation & Usage
 
 ### In Node.js
+
+Install the SDK with your package manager of choice:
+
+```bash
+# npm
+npm install neuro-game-sdk
+# yarn
+yarn add neuro-game-sdk
+# pnpm
+pnpm add neuro-game-sdk
+```
+
+You can then import it using ESM syntax:
 
 ```javascript
 import { NeuroClient } from 'neuro-game-sdk'

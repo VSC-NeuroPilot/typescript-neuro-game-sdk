@@ -1,0 +1,11 @@
+{
+  "name": "barebones-neuro-game-api",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}

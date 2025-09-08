@@ -1,0 +1,16 @@
+{
+  "name": "neuro-game-sdk-api",
+  "private": true,
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "sdk": "pnpm --filter=neuro-game-sdk",
+    "api": "pnpm --filter=neuro-game-api"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@changesets/cli": "^2.29.6"
+  }
+}

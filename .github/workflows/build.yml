@@ -1,0 +1,71 @@
+name: Build client + server
+
+on:
+    push:
+        paths:
+            - client/**
+            - server/**
+            - '!server/examples/**'
+    pull_request:
+        paths:
+            - client/**
+            - server/**
+            - '!server/examples/**'
+
+jobs:
+    sdk:
+        name: Build client SDK
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+            
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+            
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                node-version: 22.14.0
+                cache: 'pnpm'
+                cache-dependency-path: './pnpm-lock.yaml'
+            
+            - name: Install deps
+              run: pnpm install --frozen-lockfile
+            
+            - name: Build SDK
+              run: pnpm sdk pack
+            
+            - name: Upload SDK
+              uses: actions/upload-artifact@v4
+              with:
+                name: JS-TS client SDK ${{ github.sha }}
+                path: neuro-game-sdk-*.tgz
+    api:
+        name: Build server API
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+            
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+            
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                node-version: 22.14.0
+                cache: 'pnpm'
+                cache-dependency-path: './pnpm-lock.yaml'
+            
+            - name: Install deps
+              run: pnpm install --frozen-lockfile
+            
+            - name: Build API
+              run: pnpm api pack
+            
+            - name: Upload API
+              uses: actions/upload-artifact@v4
+              with:
+                name: JS-TS server API ${{ github.sha }}
+                path: neuro-game-api-*.tgz
