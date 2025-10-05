@@ -11,8 +11,10 @@
   ],
   "scripts": {
     "build": "rollup -c",
-    "prepare": "npm run build"
+    "dev": "rollup -c -w",
+    "prepack": "npm run build"
   },
+  "readme": "./README.md",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AriesAlex/typescript-neuro-game-sdk.git"

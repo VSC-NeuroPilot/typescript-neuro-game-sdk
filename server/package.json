@@ -9,11 +9,11 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prepack": "pnpm build"
   },
   "readme": "./README.md",
   "keywords": [],
-  "author": "KTrain5369",
+  "author": "KTrain5169",
   "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.1.0",

@@ -21,12 +21,15 @@ export default [
       },
     ],
     plugins: [
-      typescript({ tsconfig }),
+      typescript({
+        tsconfig,
+        exclude: ['examples/**/*']
+      }),
       resolve({
         preferBuiltins: true,
       }),
       commonjs(),
     ],
-    external: ['ws'],
+    external: ['ws', 'json-schema', 'http'], // Mark dependencies as external
   },
 ]

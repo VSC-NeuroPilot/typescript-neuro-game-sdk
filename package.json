@@ -8,7 +8,8 @@
     "api": "pnpm --filter=neuro-game-api"
   },
   "keywords": [],
-  "author": "",
+  "author": "ArieX",
+  "contributors": ["KTrain5169"],
   "license": "MIT",
   "devDependencies": {
     "@changesets/cli": "^2.29.6"

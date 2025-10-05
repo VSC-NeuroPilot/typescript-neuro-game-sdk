@@ -17,7 +17,9 @@ export interface ForcedAction {
 }
 
 export interface ExtraConfigOptions {
-    /** Whether this is a test mode. Useful for automated testing purposes. */
+    /**
+     * Whether this is a test mode. Useful for automated testing purposes.
+     */
     test?: boolean
     /** Whether or not the server should support multi-connects. Defaults to `false` since for most purposes you shouldn't be needing this. */
     multiConnect?: boolean
@@ -166,7 +168,7 @@ export class NeuroServer {
      * Extra configuration options for this server.
      * See {@link ExtraConfigOptions} for these config types.
      */
-    private readonly extraConfigs?: ExtraConfigOptions | undefined
+    private readonly extraConfigs?: ExtraConfigOptions
 
     /** 
      * Constructs a Neuro API server.
@@ -175,7 +177,7 @@ export class NeuroServer {
      * @param extraConfigs Extra configuration options.
      */
     constructor(host = "127.0.0.1", port = 8000, extraConfigs?: ExtraConfigOptions | undefined) {
-        this.extraConfigs = extraConfigs || undefined
+        if (extraConfigs) this.extraConfigs = extraConfigs
         this.wss = new WebSocketServer({ host, port })
 
         this.setupEventHandlers()
