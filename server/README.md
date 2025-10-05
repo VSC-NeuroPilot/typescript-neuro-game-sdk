@@ -1,6 +1,6 @@
 # TypeScript Neuro Game API
 
-A TypeScript/JavaScript API implementation of the Neuro Game API server. This implementation is based on both the [official implementation of the Neuro Game API](https://github.com/VedalAI/neuro-sdk/blob/main/API/SPECIFICATION.md) and [CoolCat467's server-side implementation in the Python SDK](https://github.com/CoolCat467/Neuro-API/blob/main/src/neuro_api/server.py)
+A TypeScript/JavaScript API implementation of the Neuro Game API server. This implementation is based on the [official implementation of the Neuro Game API](https://github.com/VedalAI/neuro-sdk/blob/main/API/SPECIFICATION.md) and was inspired by [CoolCat467's server-side implementation in the Python SDK](https://github.com/CoolCat467/Neuro-API/blob/main/src/neuro_api/server.py)
 
 ## Installation & Usage
 
@@ -21,7 +21,7 @@ Then, use it in your scripts like so:
 import { NeuroServer } from 'neuro-game-api'
 
 const NEURO_SERVER_HOST = 'localhost'
-const NEURO_SERVER_PORT = '8000'
+const NEURO_SERVER_PORT = 8000
 
 const server = new NeuroServer(NEURO_SERVER_HOST, NEURO_SERVER_PORT, () => {
     // Server initialisation code. Check examples
