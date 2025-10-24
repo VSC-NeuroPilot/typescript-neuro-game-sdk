@@ -21,12 +21,6 @@ let actions: Action[] = []
 let pendingResult: { id: string; actionName: string } | null = null
 let actionForceQueue: string[] = []
 
-// Setup connection handler
-server['wss'].on('connection', (ws: any) => {
-    console.log("+ Connection opened")
-    send({ command: "actions/reregister_all" })
-})
-
 async function onMessageReceived(message: Message) {
     console.log("<---", util.inspect(message, false, null, true))
 
