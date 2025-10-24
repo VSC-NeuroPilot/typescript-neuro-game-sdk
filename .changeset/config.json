@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["neuro-game-api", "randy", "barebones-neuro-game-api"]
+  "ignore": ["neuro-game-sdk", "randy", "barebones-neuro-game-api"]
 }
