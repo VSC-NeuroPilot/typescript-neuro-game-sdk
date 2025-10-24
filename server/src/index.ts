@@ -170,7 +170,7 @@ export class NeuroServer {
 
     /** Generate a unique action ID */
     public generateActionId(): string {
-        return `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        return `action_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
     }
 
     /** Setup WebSocket event handlers */
