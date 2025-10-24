@@ -13,6 +13,11 @@
     "dev": "rollup -c -w",
     "prepack": "pnpm build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VSC-NeuroPilot/typescript-neuro-game-sdk",
+    "directory": "server/"
+  },
   "readme": "./README.md",
   "keywords": [],
   "author": "KTrain5169",
