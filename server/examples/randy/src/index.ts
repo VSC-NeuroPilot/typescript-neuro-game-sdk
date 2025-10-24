@@ -1,226 +1,132 @@
-import { NeuroServer, type Action } from 'neuro-game-api'
-import express from 'express'
-import assert from 'assert'
+import express from "express"
+import pkg from "body-parser"
+import { NeuroServer, type OutgoingMessage } from "neuro-game-api"
+import { JSONSchemaFaker } from "json-schema-faker"
+import util from "util"
 
-// Create a Randy-like server that randomly selects and executes actions
-class RandyServer {
-    private neuroServer: NeuroServer
-    private httpServer: any
-    private registeredActions: Map<string, Action[]> = new Map()
-    private pendingResult: { id: string; actionName: string } | null = null
-    private actionForceQueue: string[] = []
+const { json } = pkg
 
-    constructor() {
-        this.neuroServer = new NeuroServer("127.0.0.1", 8000)
-        this.setupHttpServer()
-        this.setupNeuroServerHandlers()
-    }
+const app = express()
+app.use(json())
+app.listen(1337)
 
-    private setupHttpServer() {
-        const app = express()
-        app.use(express.json())
+app.post("/", (req, res) => {
+    send(req.body)
+    res.sendStatus(200)
+})
 
-        // HTTP endpoint to manually trigger actions (like Randy)
-        app.post('/', (req, res) => {
-            const message = req.body
-            console.log('HTTP trigger:', message)
+const server = new NeuroServer("127.0.0.1", 8000)
 
-            if (message.command === 'action') {
-                // Simulate action execution
-                this.sendActionToGame(message.data)
-            }
+let actions: Action[] = []
+let pendingResult: { id: string; actionName: string } | null = null
+let actionForceQueue: string[] = []
 
-            res.sendStatus(200)
-        })
+// Setup connection handler
+server['wss'].on('connection', (ws: any) => {
+    console.log("+ Connection opened")
+    send({ command: "actions/reregister_all" })
+})
 
-        this.httpServer = app.listen(1337, () => {
-            console.log('HTTP server listening on port 1337')
-            console.log('Send POST requests to http://localhost:1337 to manually trigger actions')
-        })
-    }
+async function onMessageReceived(message: Message) {
+    console.log("<---", util.inspect(message, false, null, true))
 
-    private setupNeuroServerHandlers() {
-        // Override the default action handlers
-        this.neuroServer['commandHandler'].registerHandler('actions/register', async (data: any, connection: any) => {
-            const gameName = connection.gameName
-            if (!gameName) return
+    if (!message.data) return
 
-            const actions: Action[] = data?.actions || []
-            this.registeredActions.set(gameName, [
-                ...(this.registeredActions.get(gameName) || []),
-                ...actions
-            ])
+    switch (message.command) {
+        case "actions/register": {
+            actions.push(...(message.data.actions as Action[]))
+            break
+        }
 
-            console.log(`Registered ${actions.length} actions for ${gameName}:`, actions.map(a => a.name))
-        })
+        case "actions/unregister": {
+            actions = actions.filter(a => !message.data!.action_names.includes(a.name))
+            break
+        }
 
-        this.neuroServer['commandHandler'].registerHandler('actions/unregister', async (data: any, connection: any) => {
-            const gameName = connection.gameName
-            if (!gameName) return
-
-            const actionNames: string[] = data?.action_names || []
-            const existingActions = this.registeredActions.get(gameName) || []
-
-            const filteredActions = existingActions.filter(action => !actionNames.includes(action.name))
-            this.registeredActions.set(gameName, filteredActions)
-
-            console.log(`Unregistered actions for ${gameName}:`, actionNames)
-        })
-
-        this.neuroServer['commandHandler'].registerHandler('actions/force', async (data: any, connection: any) => {
-            const gameName = connection.gameName
-            if (!gameName) return
-
-            const actionNames: string[] = data?.action_names || []
-            const query: string = data?.query || ''
-
-            console.log(`Action force for ${gameName}: "${query}" with actions [${actionNames.join(', ')}]`)
-
-            // Randomly select an action after a short delay (like Randy)
-            if (this.pendingResult === null) {
-                setTimeout(() => this.executeRandomAction(gameName, actionNames), 500)
+        case "actions/force": {
+            const actionName: string = message.data.action_names[Math.floor(Math.random() * message.data.action_names.length)]
+            if (pendingResult === null) {
+                setTimeout(() => sendAction(actionName), 500)
             } else {
-                console.warn('Received new actions/force while waiting for result; sent to queue')
-                this.actionForceQueue.push(...actionNames)
+                console.warn("! Received new actions/force while waiting for result; sent to queue")
+                actionForceQueue.push(actionName)
             }
-        })
+            break
+        }
 
-        this.neuroServer['commandHandler'].registerHandler('action/result', async (data: any, connection: any) => {
-            const id: string = data?.id || ''
-            const success: boolean = data?.success || false
-            const message: string = data?.message || ''
+        case "action/result": {
+            if (pendingResult === null) {
+                console.warn(`! Received unexpected action/result: '${message.data.id}'`)
+                break
+            }
 
-            console.log(`Action result: ${id} - ${success ? 'SUCCESS' : 'FAILURE'}: ${message}`)
+            if (message.data.id === pendingResult.id) {
+                const actionName = pendingResult.actionName
+                pendingResult = null
 
-            if (this.pendingResult && this.pendingResult.id === id) {
-                console.log(`Completed action: ${this.pendingResult.actionName}`)
-                this.pendingResult = null
-
-                // Process queued actions
-                if (this.actionForceQueue.length > 0) {
-                    const nextAction = this.actionForceQueue.shift()!
-                    const gameName = connection.gameName
-                    setTimeout(() => this.executeRandomAction(gameName, [nextAction]), 500)
+                if (!message.data.success) {
+                    setTimeout(() => sendAction(actionName), 500)
+                } else if (actionForceQueue.length > 0) {
+                    setTimeout(() => sendAction(actionForceQueue.shift()!), 500)
                 }
             } else {
-                console.warn(`Received unexpected action result: ${id}`)
+                console.warn(`! Received unknown action/result '${message.data.id}' while waiting for '${pendingResult.id}'`)
             }
-        })
-    }
-
-    private executeRandomAction(gameName: string, actionNames: string[]) {
-        const actions = this.registeredActions.get(gameName) || []
-        const availableActions = actions.filter(action => actionNames.includes(action.name))
-
-        if (availableActions.length === 0) {
-            console.warn(`No available actions for ${gameName} from: ${actionNames.join(', ')}`)
-            return
+            break
         }
-
-        const selectedAction = availableActions[Math.floor(Math.random() * availableActions.length)]
-        assert(selectedAction, 'How was an action selected?')
-        const actionId = this.generateActionId()
-
-        // Generate fake data based on schema if available
-        let fakeData = '{}'
-        if (selectedAction.schema) {
-            try {
-                fakeData = this.generateFakeDataFromSchema(selectedAction.schema)
-            } catch (error) {
-                console.warn('Failed to generate fake data for action:', error)
-            }
-        }
-
-        this.pendingResult = { id: actionId, actionName: selectedAction.name }
-
-        const actionMessage = {
-            command: 'action',
-            data: {
-                id: actionId,
-                name: selectedAction.name,
-                data: fakeData
-            }
-        }
-
-        console.log(`--> Executing action: ${selectedAction.name} with data: ${fakeData}`)
-        this.neuroServer.sendToGame(gameName, actionMessage)
-    }
-
-    private sendActionToGame(actionData: any) {
-        // Find a game to send the action to
-        const connections = this.neuroServer.getConnectedClients()
-        if (connections.length === 0) {
-            console.warn('No connected games to send action to')
-            return
-        }
-
-        const connection = connections[0] // Use first connection
-        if (connection?.gameName) {
-            const actionMessage = {
-                command: 'action',
-                data: actionData
-            }
-            this.neuroServer.sendToGame(connection.gameName, actionMessage)
-        }
-    }
-
-    private generateFakeDataFromSchema(schema: any): string {
-        // Very basic fake data generation
-        const fakeData: any = {}
-
-        if (schema.properties) {
-            for (const [key, prop] of Object.entries(schema.properties as any)) {
-                const propSchema = prop as any
-                switch (propSchema.type) {
-                    case 'string':
-                        fakeData[key] = propSchema.enum ? propSchema.enum[0] : 'test_string'
-                        break
-                    case 'number':
-                    case 'integer':
-                        fakeData[key] = propSchema.minimum || 1
-                        break
-                    case 'boolean':
-                        fakeData[key] = true
-                        break
-                    default:
-                        fakeData[key] = null
-                }
-            }
-        }
-
-        return JSON.stringify(fakeData)
-    }
-
-    private generateActionId(): string {
-        return `randy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    }
-
-    async close() {
-        if (this.httpServer) {
-            await new Promise<void>((resolve) => {
-                this.httpServer.close(() => resolve())
-            })
-        }
-        await this.neuroServer.close()
     }
 }
 
-// Create and start the Randy server
-const randy = new RandyServer()
-
-console.log('Randy-like Neuro API server started!')
-console.log('WebSocket: ws://localhost:8000')
-console.log('HTTP API: http://localhost:1337')
-console.log('')
-console.log('Example HTTP request to trigger an action:')
-console.log('curl -X POST http://localhost:1337 -H "Content-Type: application/json" -d \'{"command":"action","data":{"id":"test","name":"example_action","data":"{\\"param\\":\\"value\\"}"}}\' ')
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-    console.log('\nShutting down Randy server...')
-    await randy.close()
-    process.exit(0)
+// Register handlers with the NeuroServer
+server['commandHandler'].registerHandler('actions/register', async (data: any) => {
+    await onMessageReceived({ command: 'actions/register', data })
 })
 
-// Keep the process alive
-process.stdin.resume()
+server['commandHandler'].registerHandler('actions/unregister', async (data: any) => {
+    await onMessageReceived({ command: 'actions/unregister', data })
+})
+
+server['commandHandler'].registerHandler('actions/force', async (data: any) => {
+    await onMessageReceived({ command: 'actions/force', data })
+})
+
+server['commandHandler'].registerHandler('action/result', async (data: any) => {
+    await onMessageReceived({ command: 'action/result', data })
+})
+
+function sendAction(actionName: string) {
+    const id = Math.random().toString()
+
+    if (actionName == "choose_name") {
+        send({ command: "action", data: { id, name: "choose_name", data: JSON.stringify({ name: "RANDY" }) } })
+        return
+    }
+
+    const action = actions.find(a => a.name === actionName)
+    if (!action) return
+
+    const responseObj = !action?.schema ? undefined : JSON.stringify(JSONSchemaFaker.generate(action.schema))
+
+    send({ command: "action", data: { id, name: action.name, data: responseObj } })
+}
+
+export function send(msg: Message) {
+    if (msg.command === "action" && msg.data) {
+        pendingResult = { id: msg.data.id, actionName: msg.data.name }
+    }
+
+    console.log("--->", util.inspect(msg, false, null, true))
+
+    // Broadcast to all connected clients
+    server.broadcast(msg as OutgoingMessage)
+}
+
+type Message = {
+    command: string,
+    data?: { [key: string]: any }
+}
+
+type Action = {
+    name: string,
+    schema: any
+}

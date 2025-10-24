@@ -18,7 +18,7 @@ export interface ForcedAction {
 
 export interface ExtraConfigOptions {
     /**
-     * Whether this is a test mode. Useful for automated testing purposes.
+     * Whether this is a test mode. Useful for automated testing purposes. Currently unused, however.
      */
     test?: boolean
     /** Whether or not the server should support multi-connects. Defaults to `false` since for most purposes you shouldn't be needing this. */
@@ -155,7 +155,7 @@ export class NeuroServer {
     /** Action handlers per game */
     private readonly gameActionHandlers: Map<string, Map<string, ActionHandler>> = new Map()
     /** Whether or not there is a forced action currently in place. */
-    public readonly forcedAction?: ForcedAction
+    public readonly forcedAction: ForcedAction | null = null;
     /** Currently connected clients */
     private readonly connections: Map<number, ClientConnection> = new Map()
     /** Message queues per connection */
@@ -176,7 +176,7 @@ export class NeuroServer {
      * @param port The port to spawn the socket server on.
      * @param extraConfigs Extra configuration options.
      */
-    constructor(host = "127.0.0.1", port = 8000, extraConfigs?: ExtraConfigOptions | undefined) {
+    constructor(host = "127.0.0.1", port = 8000, extraConfigs?: ExtraConfigOptions) {
         if (extraConfigs) this.extraConfigs = extraConfigs
         this.wss = new WebSocketServer({ host, port })
 
