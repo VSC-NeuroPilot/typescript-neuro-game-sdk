@@ -23,9 +23,7 @@ import { NeuroServer } from 'neuro-game-api'
 const NEURO_SERVER_HOST = 'localhost'
 const NEURO_SERVER_PORT = 8000
 
-const server = new NeuroServer(NEURO_SERVER_HOST, NEURO_SERVER_PORT, () => {
-    // Server initialisation code. Check examples
-})
+const server = new NeuroServer(NEURO_SERVER_HOST, NEURO_SERVER_PORT, extraConfigs /* extra configs that are kinda unused for now */)
 ```
 
 ## Examples

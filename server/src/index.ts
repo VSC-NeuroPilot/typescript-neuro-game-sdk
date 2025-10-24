@@ -2,43 +2,24 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { JSONSchema7 } from 'json-schema'
 import type { IncomingMessage as HttpIncomingMessage } from 'http'
 
-// Type definitions
+// Type definitions for messages received from games
 export interface Action {
     name: string
     description: string
     schema?: Omit<JSONSchema7, 'type'> & { type: 'object' }
 }
 
-export interface ForcedAction {
-    state?: string
-    query: string
-    ephemeral_context?: boolean
-    action_names: string[]
-}
-
 export interface ExtraConfigOptions {
-    /**
-     * Whether this is a test mode. Useful for automated testing purposes. Currently unused, however.
-     */
+    /** Whether this is a test mode. Useful for automated testing purposes. */
     test?: boolean
     /** Whether or not the server should support multi-connects. Defaults to `false` since for most purposes you shouldn't be needing this. */
     multiConnect?: boolean
 }
 
-// Message types
-export interface WsMessage {
-    command: string
-    game?: string
-    data?: { [key: string]: any }
-}
-
+// Message types (what the server sends TO games)
 export interface OutgoingMessage {
     command: string
     data?: { [key: string]: any }
-}
-
-export interface IncomingMessage extends WsMessage {
-    game: string
 }
 
 // Connection interface
@@ -49,82 +30,17 @@ export interface ClientConnection {
     isAlive: boolean
 }
 
-// Execution result for actions
-export interface ExecutionResult {
-    successful: boolean
-    message?: string | undefined
+// Event handlers for server events
+export interface ServerEventHandlers {
+    onGameStartup?: (gameName: string, connection: ClientConnection) => void
+    onGameContext?: (gameName: string, message: string, silent: boolean, connection: ClientConnection) => void
+    onActionsRegistered?: (gameName: string, actions: Action[], connection: ClientConnection) => void
+    onActionsUnregistered?: (gameName: string, actionNames: string[], connection: ClientConnection) => void
+    onActionsForce?: (gameName: string, query: string, actionNames: string[], state?: string, ephemeralContext?: boolean) => void
+    onActionResult?: (gameName: string, actionId: string, success: boolean, message?: string) => void
 }
 
-export class ExecutionResultHelper {
-    static success(message?: string | undefined): ExecutionResult {
-        return { successful: true, message: message || undefined }
-    }
-
-    static failure(message: string): ExecutionResult {
-        return { successful: false, message }
-    }
-}
-
-// Action handler interface
-export interface ActionHandler {
-    name: string
-    validate(data: any): ExecutionResult
-    execute(data: any): Promise<void> | void
-}
-
-// Message queue for outgoing messages
-export class MessageQueue {
-    private messages: OutgoingMessage[] = []
-
-    enqueue(message: OutgoingMessage): void {
-        // Check if we can merge with existing messages
-        for (const existingMessage of this.messages) {
-            if (this.tryMergeMessages(existingMessage, message)) {
-                return
-            }
-        }
-        this.messages.push(message)
-    }
-
-    dequeue(): OutgoingMessage | null {
-        return this.messages.shift() || null
-    }
-
-    size(): number {
-        return this.messages.length
-    }
-
-    private tryMergeMessages(existing: OutgoingMessage, incoming: OutgoingMessage): boolean {
-        // Handle merging for actions/register
-        if (existing.command === 'actions/register' && incoming.command === 'actions/register') {
-            const existingActions = existing.data?.actions || []
-            const incomingActions = incoming.data?.actions || []
-
-            // Remove duplicate actions (by name) and add new ones
-            const filtered = existingActions.filter((existingAction: Action) =>
-                !incomingActions.some((incomingAction: Action) => incomingAction.name === existingAction.name)
-            )
-
-            existing.data = { actions: [...filtered, ...incomingActions] }
-            return true
-        }
-
-        // Handle merging for actions/unregister
-        if (existing.command === 'actions/unregister' && incoming.command === 'actions/unregister') {
-            const existingNames = existing.data?.action_names || []
-            const incomingNames = incoming.data?.action_names || []
-
-            // Remove duplicates and combine
-            const filtered = existingNames.filter((name: string) => !incomingNames.includes(name))
-            existing.data = { action_names: [...filtered, ...incomingNames] }
-            return true
-        }
-
-        return false
-    }
-}
-
-// Command handler for incoming messages
+// Command handler for incoming messages from games
 export class CommandHandler {
     private handlers: Map<string, (data: any, connection: ClientConnection) => Promise<void>> = new Map()
 
@@ -146,24 +62,20 @@ export class CommandHandler {
     }
 }
 
-/** The NeuroServer is a class that holds the current server */
+/** The NeuroServer is a class that receives connections from games and acts as Neuro */
 export class NeuroServer {
     /** The WebSocket server */
     public readonly wss: WebSocketServer
     /** Actions currently registered per game */
     private readonly gameActions: Map<string, Map<string, Action>> = new Map()
-    /** Action handlers per game */
-    private readonly gameActionHandlers: Map<string, Map<string, ActionHandler>> = new Map()
-    /** Whether or not there is a forced action currently in place. */
-    public readonly forcedAction: ForcedAction | null = null;
     /** Currently connected clients */
     private readonly connections: Map<number, ClientConnection> = new Map()
-    /** Message queues per connection */
-    private readonly messageQueues: Map<number, MessageQueue> = new Map()
     /** Command handler */
     private readonly commandHandler: CommandHandler = new CommandHandler()
     /** Connection ID counter */
     private connectionIdCounter = 0
+    /** Event handlers */
+    private readonly eventHandlers: ServerEventHandlers = {}
     /**
      * Extra configuration options for this server.
      * See {@link ExtraConfigOptions} for these config types.
@@ -185,6 +97,11 @@ export class NeuroServer {
         this.startHeartbeat()
     }
 
+    /** Set event handlers for server events */
+    public setEventHandlers(handlers: ServerEventHandlers): void {
+        Object.assign(this.eventHandlers, handlers)
+    }
+
     /** Get all actions for a specific game */
     public getGameActions(gameName: string): Action[] {
         const gameActions = this.gameActions.get(gameName)
@@ -197,12 +114,9 @@ export class NeuroServer {
         return gameName ? clients.filter(c => c.gameName === gameName) : clients
     }
 
-    /** Register an action handler for a specific game */
-    public registerActionHandler(gameName: string, handler: ActionHandler): void {
-        if (!this.gameActionHandlers.has(gameName)) {
-            this.gameActionHandlers.set(gameName, new Map())
-        }
-        this.gameActionHandlers.get(gameName)!.set(handler.name, handler)
+    /** Get the command handler for registering custom handlers */
+    public getCommandHandler(): CommandHandler {
+        return this.commandHandler
     }
 
     /** Send a message to a specific connection */
@@ -231,19 +145,35 @@ export class NeuroServer {
         })
     }
 
-    /** Force an action on a specific game */
-    public forceAction(gameName: string, query: string, actionNames: string[], state?: string, ephemeralContext?: boolean): void {
+    /** Send an action command to a specific game (server acting as Neuro) */
+    public sendAction(gameName: string, actionId: string, actionName: string, actionData?: string): void {
         const message: OutgoingMessage = {
             command: 'action',
             data: {
-                id: this.generateActionId(),
-                name: actionNames[Math.floor(Math.random() * actionNames.length)],
-                data: JSON.stringify({ query, state, ephemeral_context: ephemeralContext })
+                id: actionId,
+                name: actionName,
+                data: actionData
             }
         }
         this.sendToGame(gameName, message)
     }
 
+    /** Request all actions to be reregistered (server acting as Neuro) */
+    public requestReregisterAll(gameName?: string): void {
+        const message: OutgoingMessage = { command: 'actions/reregister_all' }
+        if (gameName) {
+            this.sendToGame(gameName, message)
+        } else {
+            this.broadcast(message)
+        }
+    }
+
+    /** Generate a unique action ID */
+    public generateActionId(): string {
+        return `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    }
+
+    /** Setup WebSocket event handlers */
     private setupEventHandlers(): void {
         this.wss.on('connection', (socket: WebSocket, request: HttpIncomingMessage) => {
             const connectionId = ++this.connectionIdCounter
@@ -254,13 +184,12 @@ export class NeuroServer {
             }
 
             this.connections.set(connectionId, connection)
-            this.messageQueues.set(connectionId, new MessageQueue())
 
             console.log(`+ Connection ${connectionId} opened`)
 
             socket.on('message', async (data: Buffer) => {
                 try {
-                    const message: WsMessage = JSON.parse(data.toString())
+                    const message: any = JSON.parse(data.toString())
                     await this.handleIncomingMessage(message, connection)
                 } catch (error) {
                     console.error(`Error parsing message from connection ${connectionId}:`, error)
@@ -270,7 +199,6 @@ export class NeuroServer {
             socket.on('close', () => {
                 console.log(`- Connection ${connectionId} closed`)
                 this.connections.delete(connectionId)
-                this.messageQueues.delete(connectionId)
             })
 
             socket.on('error', (error) => {
@@ -299,15 +227,24 @@ export class NeuroServer {
                 console.log(`Connection ${connection.id} registered as game: ${gameName}`)
                 connection.gameName = gameName
 
-                // Clear any existing actions for this game
-                this.gameActions.set(gameName, new Map())
-                this.gameActionHandlers.set(gameName, new Map())
+                // Initialize action storage for this game
+                if (!this.gameActions.has(gameName)) {
+                    this.gameActions.set(gameName, new Map())
+                }
+
+                // Call event handler if defined
+                this.eventHandlers.onGameStartup?.(gameName, connection)
             }
         })
 
         // Handle context messages
         this.commandHandler.registerHandler('context', async (data: any, connection: ClientConnection) => {
             console.log(`Context from ${connection.gameName}: ${data?.message} (silent: ${data?.silent})`)
+
+            // Call event handler if defined
+            if (connection.gameName) {
+                this.eventHandlers.onGameContext?.(connection.gameName, data?.message || '', data?.silent || false, connection)
+            }
         })
 
         // Handle action registration
@@ -323,6 +260,9 @@ export class NeuroServer {
             })
 
             this.gameActions.set(connection.gameName, gameActions)
+
+            // Call event handler if defined
+            this.eventHandlers.onActionsRegistered?.(connection.gameName, actions, connection)
         })
 
         // Handle action unregistration
@@ -337,10 +277,13 @@ export class NeuroServer {
                     gameActions.delete(name)
                     console.log(`Unregistered action '${name}' for game '${connection.gameName}'`)
                 })
+
+                // Call event handler if defined
+                this.eventHandlers.onActionsUnregistered?.(connection.gameName, actionNames, connection)
             }
         })
 
-        // Handle action forcing
+        // Handle action forcing (game is requesting Neuro to choose an action)
         this.commandHandler.registerHandler('actions/force', async (data: any, connection: ClientConnection) => {
             if (!connection.gameName) return
 
@@ -351,21 +294,27 @@ export class NeuroServer {
 
             console.log(`Action force from ${connection.gameName}: ${query} (actions: ${actionNames.join(', ')})`)
 
-            // In a real implementation, you would randomly select an action and execute it
-            // For now, we just log it
+            // Call event handler if defined
+            this.eventHandlers.onActionsForce?.(connection.gameName, query, actionNames, state, ephemeralContext)
         })
 
-        // Handle action results
+        // Handle action results (game reporting action execution result)
         this.commandHandler.registerHandler('action/result', async (data: any, connection: ClientConnection) => {
             const id: string = data?.id || ''
             const success: boolean = data?.success || false
             const message: string = data?.message || ''
 
             console.log(`Action result from ${connection.gameName}: ${id} - ${success ? 'SUCCESS' : 'FAILURE'}: ${message}`)
+
+            // Call event handler if defined
+            if (connection.gameName) {
+                this.eventHandlers.onActionResult?.(connection.gameName, id, success, message)
+            }
         })
     }
 
-    private async handleIncomingMessage(message: WsMessage, connection: ClientConnection): Promise<void> {
+    /** Handle incoming messages from game clients */
+    private async handleIncomingMessage(message: any, connection: ClientConnection): Promise<void> {
         console.log(`<-- [${connection.id}] ${message.command}`, message.data || {})
 
         // Set game name if provided
@@ -376,6 +325,7 @@ export class NeuroServer {
         await this.commandHandler.handle(message.command, message.data, connection)
     }
 
+    /** Start heartbeat to detect dead connections */
     private startHeartbeat(): void {
         setInterval(() => {
             this.connections.forEach((connection, id) => {
@@ -383,7 +333,6 @@ export class NeuroServer {
                     console.log(`Connection ${id} failed heartbeat, terminating`)
                     connection.socket.terminate()
                     this.connections.delete(id)
-                    this.messageQueues.delete(id)
                     return
                 }
 
@@ -391,10 +340,6 @@ export class NeuroServer {
                 connection.socket.ping()
             })
         }, 30000) // 30 seconds
-    }
-
-    private generateActionId(): string {
-        return `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     }
 
     /** Close the server */

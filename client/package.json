@@ -12,7 +12,7 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "prepack": "npm run build"
+    "prepack": "pnpm build"
   },
   "readme": "./README.md",
   "repository": {

@@ -1,59 +1,49 @@
-name: Publish SDK + API
+name: Publish
 
 on:
   push:
-    tags:
-      - v*
-      
+    branches:
+      - feat/server-side
+
 permissions:
-      contents: read
-      id-token: write
-      
+  contents: write
+  pull-requests: write
+  id-token: write # Required for provenance
+
 jobs:
-      changeset:
-        name: Changesets
-        runs-on: ubuntu-latest
-      sdk:
-          name: Build client SDK
-          runs-on: ubuntu-latest
-          steps:
-          - name: Checkout repository
-            uses: actions/checkout@v4
-            
-          - name: Setup pnpm
-            uses: pnpm/action-setup@v4
-            
-          - name: Setup Node.js
-            uses: actions/setup-node@v5
-            with:
-              node-version: 22.14.0
-              cache: 'pnpm'
-              cache-dependency-path: './pnpm-lock.yaml'
-              
-          - name: Install deps
-            run: pnpm install --frozen-lockfile
-              
-          - name: Publish SDK
-            run: pnpm sdk publish
-      api:
-        name: Build server API
-        runs-on: ubuntu-latest
-        steps:
-          - name: Checkout repository
-            uses: actions/checkout@v4
-                  
-          - name: Setup pnpm
-            uses: pnpm/action-setup@v4
-                  
-          - name: Setup Node.js
-            uses: actions/setup-node@v5
-            with:
-              node-version: 22.14.0
-              cache: 'pnpm'
-              cache-dependency-path: './pnpm-lock.yaml'
-                    
-          - name: Install deps
-            run: pnpm install --frozen-lockfile
-                    
-          - name: Publish API
-            run: pnpm api publish
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    environment:
+      name: neuro-game-api
+      url: https://npmjs.com/package/neuro-game-api
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.14.0
+          cache: "pnpm"
+          cache-dependency-path: "./pnpm-lock.yaml"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: pnpm --filter=neuro-game-api publish
+          commit: "chore: version packages"
+          title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
