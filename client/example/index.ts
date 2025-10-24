@@ -1,6 +1,6 @@
-// example.ts
+// Node.js example
 
-import { NeuroClient } from './index'
+import { NeuroClient } from '../src'
 
 const NEURO_SERVER_URL = 'ws://localhost:8000'
 const GAME_NAME = 'Guess the Number'
