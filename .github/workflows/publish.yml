@@ -3,7 +3,7 @@ name: Publish
 on:
   push:
     branches:
-      - feat/server-side
+      - master
 
 permissions:
   contents: write
