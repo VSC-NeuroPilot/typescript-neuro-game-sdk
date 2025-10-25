@@ -1,4 +1,4 @@
-import { WebSocketServer, WebSocket } from 'ws'
+import { WebSocketServer, WebSocket, type AddressInfo } from 'ws'
 import type { JSONSchema7 } from 'json-schema'
 import type { IncomingMessage as HttpIncomingMessage } from 'http'
 
@@ -86,13 +86,14 @@ export class NeuroServer {
      * Constructs a Neuro API server.
      * @param host The host to spawn the socket server on.
      * @param port The port to spawn the socket server on.
-     * @param extraConfigs Extra configuration options.
+     * @param onStartup A function to run when the server starts listening.
+     * @param extraConfigs Extra configuration options. Currently unused.
      */
-    constructor(host = "127.0.0.1", port = 8000, extraConfigs?: ExtraConfigOptions) {
+    constructor(host = "127.0.0.1", port = 8000, onStartup?: () => void, extraConfigs?: ExtraConfigOptions) {
         if (extraConfigs) this.extraConfigs = extraConfigs
-        this.wss = new WebSocketServer({ host, port })
+        this.wss = new WebSocketServer({ host, port }, onStartup)
 
-        this.setupEventHandlers()
+        this.setupEventHandlers(onStartup)
         this.setupCommandHandlers()
         this.startHeartbeat()
     }
@@ -174,8 +175,8 @@ export class NeuroServer {
     }
 
     /** Setup WebSocket event handlers */
-    private setupEventHandlers(): void {
-        this.wss.on('connection', (socket: WebSocket, request: HttpIncomingMessage) => {
+    private setupEventHandlers(onStartup?: () => void): void {
+        this.wss.on('connection', (socket: WebSocket, _request: HttpIncomingMessage) => {
             const connectionId = ++this.connectionIdCounter
             const connection: ClientConnection = {
                 id: connectionId,
@@ -215,7 +216,7 @@ export class NeuroServer {
 
         this.wss.on('listening', () => {
             const address = this.wss.address()
-            console.log(`Neuro API server listening on ${typeof address === 'string' ? address : `${address?.address}:${address?.port}`}`)
+            onStartup?.()
         })
     }
 
