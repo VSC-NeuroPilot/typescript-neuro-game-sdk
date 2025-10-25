@@ -43,7 +43,6 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: pnpm --filter=neuro-game-api publish
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
