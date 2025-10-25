@@ -1,6 +1,6 @@
 {
   "name": "neuro-game-api",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "description": "A JavaScript/TypeScript server-side API implementation of the Neuro Game API.",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
@@ -11,7 +11,8 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "prepack": "pnpm build"
+    "prepack": "pnpm build",
+    "publish": "pnpm publish --access public"
   },
   "repository": {
     "type": "git",
