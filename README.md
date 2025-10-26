@@ -4,6 +4,9 @@ A TypeScript and JavaScript SDK for integrating games with [Neuro-sama](https://
 
 This SDK is based on the original [Neuro Game SDK](https://github.com/VedalAI/neuro-game-sdk) and provides an implementation compatible with both Node.js and browser environments. It is designed to work seamlessly in both JavaScript and TypeScript projects.
 
+Please note that this package is for integrating a game to Neuro.
+If you're making a server-side implementation of the Neuro API in JavaScript/TypeScript, there is another package called [`neuro-game-api`](https://github.com/KTrain5169/typescript-neuro-game-api) to help.
+
 ## Installation
 
 Install the SDK via npm:
